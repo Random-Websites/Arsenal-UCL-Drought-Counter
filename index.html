@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arsenal UCL Drought | Digital Terminal</title>
+    <style>
+        :root {
+            --bg-color: #050505;
+            --text-primary: #f0f0f0;
+            --text-muted: #666666;
+            --arsenal-red: #EF0107;
+            --glitch-cyan: #00ffff;
+            --glitch-magenta: #ff00ff;
+            --font-main: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            --font-mono: 'Courier New', Courier, monospace;
+            --header-height: 50px; 
+            --digit-spacing: 0.1em;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            cursor: crosshair;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: var(--font-main);
+            /* min-height: 100vh; Removed to allow footer to sit below all content naturally */
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* --- Ambient Background Effect --- */
+        .spotlight {
+            position: fixed;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(239, 1, 7, 0.15) 0%, rgba(0,0,0,0) 70%);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        /* Noise Texture */
+        body::after {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.07'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* --- Sound Controls (Top Right) --- */
+        .sound-controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+
+        .sound-select {
+            padding: 8px 12px;
+            background: #1a1a1a;
+            border: 1px solid rgba(239, 1, 7, 0.5);
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            cursor: pointer;
+            border-radius: 0; 
+            outline: none;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .sound-select:hover {
+            border-color: var(--arsenal-red);
+            background: rgba(239, 1, 7, 0.1);
+            box-shadow: 0 0 5px var(--arsenal-red);
+        }
+
+        .sound-select option {
+            background: #1a1a1a;
+            color: var(--text-primary);
+        }
+
+        /* --- Main Container --- */
+        .container {
+            z-index: 10;
+            text-align: center;
+            position: relative;
+            width: 100%;
+            max-width: 1400px;
+            padding: 20px;
+            min-height: calc(100vh - 35px); /* Ensure content height accounts for footer */
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start; /* Start content from the top */
+            align-items: center;
+            margin: 0 auto;
+            padding-top: 120px; 
+            padding-bottom: 80px;
+        }
+
+        /* Header (MODIFIED FOR SIZE) */
+        main-header {
+            margin-bottom: 2rem; 
+            opacity: 0;
+            animation: fadeDown 1s ease forwards 0.5s;
+            width: 100%;
+        }
+
+        h1 {
+            /* REDUCED FONT SIZE */
+            font-size: clamp(1.2rem, 3.5vw, 1.6rem); 
+            text-transform: uppercase;
+            letter-spacing: 0.4em; 
+            color: var(--text-primary);
+            white-space: nowrap;
+            font-weight: 200;
+        }
+
+        h1 span {
+            color: var(--arsenal-red);
+            font-weight: 700;
+            text-shadow: 0 0 10px rgba(239, 1, 7, 0.5);
+            text-decoration: underline; 
+            text-decoration-color: var(--arsenal-red);
+            text-underline-offset: 5px;
+            text-decoration-thickness: 2px;
+        }
+
+        /* --- The Timer Grid (MODIFIED FOR EQUAL SPACING) --- */
+        .timer-wrapper {
+            position: relative;
+            padding: 0rem 0;
+            transition: all 0.4s ease;
+        }
+
+        .timer-grid {
+            display: grid;
+            /* Using repeat(5, 1fr) for equal width columns */
+            grid-template-columns: repeat(5, 1fr); 
+            /* Using a fixed gap for separation */
+            gap: 0; 
+            align-items: baseline;
+            transition: filter 0.4s ease, opacity 0.4s ease;
+            position: relative;
+        }
+
+        .unit {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0 20px;
+            border-right: 1px solid rgba(255, 255, 255, 0.0);
+        }
+
+        .number {
+            font-family: var(--font-mono);
+            font-size: clamp(2.5rem, 9vw, 8rem);
+            font-weight: 700;
+            line-height: 1;
+            letter-spacing: var(--digit-spacing); 
+            position: relative;
+            color: var(--text-primary);
+            text-shadow: 
+                0 0 1px var(--arsenal-red),
+                0 0 5px rgba(255, 255, 255, 0.1),
+                0 0 10px rgba(255, 255, 255, 0.05);
+        }
+
+        /* --- RED YEARS DIGIT --- */
+        .years-glitch {
+            position: relative;
+            color: var(--arsenal-red);
+            text-shadow: 
+                0 0 10px var(--arsenal-red), 
+                0 0 40px rgba(239, 1, 7, 0.7);
+            transition: color 0.1s;
+        }
+
+        .label {
+            margin-top: 1rem;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.3em;
+            color: var(--text-muted);
+            border-top: 1px solid var(--text-muted);
+            padding-top: 5px;
+        }
+
+        /* Glitch Animation (Unchanged) */
+        .years-glitch::before, .years-glitch::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-color);
+            color: var(--arsenal-red);
+            letter-spacing: var(--digit-spacing);
+        }
+
+        .years-glitch::before {
+            left: 2px;
+            text-shadow: -2px 0 var(--glitch-magenta);
+            clip: rect(calc(45% - 5px), 450px, calc(55% + 5px), 0); 
+            animation: glitch-anim 0.5s infinite linear alternate-reverse; 
+        }
+
+        .years-glitch::after {
+            left: -2px;
+            text-shadow: -2px 0 var(--glitch-cyan);
+            clip: rect(calc(45% - 5px), 450px, calc(55% + 5px), 0);
+            animation: glitch-anim2 0.7s infinite linear alternate-reverse; 
+        }
+
+        @keyframes glitch-anim {
+            0% { clip: rect(40px, 450px, 60px, 0); transform: translateX(2px); }
+            10% { clip: rect(70px, 450px, 90px, 0); transform: translateX(-2px); }
+            20% { clip: rect(10px, 450px, 30px, 0); transform: translateX(1px); }
+            30% { clip: rect(85px, 450px, 105px, 0); transform: translateX(-1px); }
+            40% { clip: rect(25px, 450px, 45px, 0); transform: translateX(2px); }
+            50% { clip: rect(55px, 450px, 75px, 0); transform: translateX(-2px); }
+            60% { clip: rect(5px, 450px, 25px, 0); transform: translateX(1px); }
+            70% { clip: rect(75px, 450px, 95px, 0); transform: translateX(-1px); }
+            80% { clip: rect(35px, 450px, 55px, 0); transform: translateX(2px); }
+            90% { clip: rect(65px, 450px, 85px, 0); transform: translateX(-2px); }
+            100% { clip: rect(95px, 450px, 115px, 0); transform: translateX(1px); }
+        }
+
+        @keyframes glitch-anim2 {
+            0% { clip: rect(50px, 450px, 70px, 0); transform: translateX(-1px); }
+            10% { clip: rect(80px, 450px, 100px, 0); transform: translateX(1px); }
+            20% { clip: rect(20px, 450px, 40px, 0); transform: translateX(-2px); }
+            30% { clip: rect(95px, 450px, 115px, 0); transform: translateX(2px); }
+            40% { clip: rect(35px, 450px, 55px, 0); transform: translateX(-1px); }
+            50% { clip: rect(65px, 450px, 85px, 0); transform: translateX(1px); }
+            60% { clip: rect(15px, 450px, 35px, 0); transform: translateX(-2px); }
+            70% { clip: rect(85px, 450px, 105px, 0); transform: translateX(2px); }
+            80% { clip: rect(45px, 450px, 65px, 0); transform: translateX(-1px); }
+            90% { clip: rect(75px, 450px, 95px, 0); transform: translateX(1px); }
+            100% { clip: rect(5px, 450px, 25px, 0); transform: translateX(-2px); }
+        }
+
+
+        /* --- The Text Context --- */
+        .context-text {
+            margin-top: 3rem;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            transition: opacity 0.3s ease;
+            padding: 0 10px;
+        }
+
+        /* --- The Reveal Overlay (Hover/Tap Section) --- */
+        .overlay-info {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+            z-index: 20;
+            backdrop-filter: blur(0px);
+        }
+
+        .overlay-info.active {
+             opacity: 1; 
+             backdrop-filter: blur(5px); 
+             pointer-events: auto;
+        }
+
+        /* MODIFIED CLOSE CALLS CARD FOR AESTHETICS */
+        .close-calls-card {
+            background: rgba(20, 20, 20, 0.98); /* Slightly darker background */
+            border: 3px solid var(--arsenal-red); /* Thicker border */
+            border-image: linear-gradient(to right, var(--arsenal-red) 5%, var(--glitch-cyan), var(--glitch-magenta), var(--arsenal-red) 95%) 1; /* Gradient border */
+            padding: 2.5rem; /* More padding */
+            max-width: 90%;
+            width: 550px; /* Slightly wider */
+            transform: scale(0.9);
+            transition: transform 0.4s ease;
+            text-align: left;
+            box-shadow: 0 0 50px rgba(239, 1, 7, 0.6), inset 0 0 10px rgba(239, 1, 7, 0.3); /* Stronger glow and inner shadow */
+            position: relative;
+            font-family: var(--font-mono); /* Monospace font for "terminal" feel */
+        }
+        
+        .overlay-info.active .close-calls-card { transform: scale(1); }
+
+        .close-calls-card h2 {
+            font-size: 1.6rem;
+            margin-bottom: 1.5rem;
+            color: var(--glitch-cyan); /* Changed color for emphasis */
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--glitch-cyan); /* Line under heading */
+            padding-bottom: 0.75rem;
+            letter-spacing: 0.25em;
+            text-shadow: 0 0 5px var(--glitch-cyan);
+        }
+
+        .highlight-box {
+            margin-top: 1.5rem;
+            padding: 1.5rem;
+            background: rgba(239, 1, 7, 0.1);
+            border: 1px solid var(--arsenal-red);
+            border-left: 5px solid var(--arsenal-red); /* Stronger left bar */
+            font-family: var(--font-main);
+            color: var(--text-primary);
+        }
+
+        .highlight-box h3 {
+            font-size: 1.1rem;
+            color: var(--arsenal-red);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+        }
+
+        .highlight-box p {
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .close-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: var(--arsenal-red);
+            color: var(--bg-color);
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: bold;
+            line-height: 1;
+        }
+        
+        /* --- Hover Logic (Desktop Only) --- */
+        @media (min-width: 769px) {
+            .timer-wrapper:hover .timer-grid { filter: blur(8px); opacity: 0.2; }
+            .timer-wrapper:hover + .context-text { opacity: 0.1; }
+            .timer-wrapper:hover .overlay-info { opacity: 1; backdrop-filter: blur(5px); pointer-events: auto; }
+            .timer-wrapper:hover .close-calls-card { transform: translateY(0); }
+            /* Hide close button on desktop hover */
+            .close-button { display: none; }
+        }
+
+
+        /* --- Timeline/Milestone Section --- */
+        .timeline-section {
+            margin-top: 3rem; 
+            width: 100%;
+            max-width: 800px;
+            opacity: 0;
+            animation: fadeIn 1s ease forwards 1s;
+        }
+
+        .timeline-list {
+            display: flex;
+            overflow-x: auto; 
+            padding: 1rem 0;
+            margin-top: 1rem; 
+            gap: 15px; 
+            padding-bottom: 2rem;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* Custom Scrollbar for Timeline */
+        .timeline-list::-webkit-scrollbar {
+            height: 5px;
+        }
+
+        .timeline-list::-webkit-scrollbar-track {
+            background: rgba(20, 20, 20, 0.5);
+        }
+
+        .timeline-list::-webkit-scrollbar-thumb {
+            background: var(--arsenal-red);
+            border-radius: 10px;
+            transition: background 0.3s ease;
+        }
+
+        .milestone-card {
+            flex: 0 0 250px;
+            background: rgba(20, 20, 20, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 1.5rem;
+            text-align: left;
+            transition: transform 0.3s ease, background 0.3s ease, border-color 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            position: relative;
+        }
+        
+        .milestone-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: var(--arsenal-red);
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.3s ease;
+        }
+
+        .milestone-card:hover {
+            transform: translateY(-8px);
+            background: rgba(239, 1, 7, 0.15);
+        }
+        
+        .milestone-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        /* --- UPDATED SPACING RULES --- */
+        .milestone-card .year {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            letter-spacing: 0.1em;
+            margin-bottom: 0.8rem; 
+        }
+
+        .milestone-card h3 {
+            color: var(--arsenal-red);
+            font-size: 1.0rem;
+            margin-top: 0.5rem; 
+            margin-bottom: 1rem; 
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+        }
+
+        .milestone-card p {
+            margin-top: 0.5rem; 
+            line-height: 1.5;
+        }
+        /* --- END UPDATED SPACING RULES --- */
+
+        /* --- Footer (MODIFIED TO STATIC) --- */
+        /* --- Footer (MODIFIED TO BE FIXED AT BOTTOM) --- */
+        .footer {
+            /* CHANGED: Fixed position to stick it to the viewport bottom */
+            position: fixed; 
+            bottom: 0; /* Sticks it to the very bottom */
+            left: 0;
+            width: 100%;
+            padding: 0.8rem 0;
+            font-size: 0.7rem;
+            color: var(--bg-color); 
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            z-index: 1000; /* Increased z-index to ensure it sits above all content */
+            background: var(--arsenal-red);
+            text-align: center;
+            box-shadow: 0 -2px 10px rgba(239, 1, 7, 0.5);
+            line-height: 1; 
+        }
+
+        @keyframes fadeDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+
+        /* Mobile Adjustments */
+        @media (max-width: 768px) {
+            .timer-grid { grid-template-columns: repeat(2, 1fr); gap: 2rem; }
+            .unit:nth-child(5) { grid-column: span 2; } 
+            .spotlight { display: none; }
+            .context-text { padding: 0 1rem; font-size: 0.8rem; }
+            .sound-select { font-size: 0.7rem; padding: 6px 8px; }
+            .container { padding-top: 60px; padding-bottom: 60px; }
+            
+            .overlay-info { background: rgba(5, 5, 5, 0.8); }
+            .timer-wrapper { cursor: pointer; }
+
+            .close-calls-card { width: 95%; padding: 2rem; }
+            .close-calls-card h2 { font-size: 1.2rem; }
+            .highlight-box { padding: 1rem; }
+            .footer { padding: 0.6rem 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="spotlight" id="spotlight"></div>
+
+    <div class="sound-controls">
+        <select class="sound-select" id="soundSelect">
+            <option value="none">MUTE</option>
+            <option value="tick" selected>CLOCK TICKING</option>
+            <option value="heartbeat">HEARTBEAT DRONE</option>
+            <option value="ambient">AMBIENT HUM</option>
+            <option value="dramatic">TENSION PULSE</option>
+        </select>
+    </div>
+
+    <div class="container">
+        <main-header>
+            <h1>ARSENAL FC <span>UCL DROUGHT</span> TIMELINE</h1>
+        </main-header>
+
+        <div class="timer-wrapper" id="timerWrapper">
+            <div class="timer-grid" id="mainTimer">
+                <div class="unit">
+                    <div class="number years-glitch" id="years" data-text="000">000</div>
+                    <div class="label">Years</div>
+                </div>
+                <div class="unit">
+                    <div class="number" id="days">000</div>
+                    <div class="label">Days</div>
+                </div>
+                <div class="unit">
+                    <div class="number" id="hours">00</div>
+                    <div class="label">Hours</div>
+                </div>
+                <div class="unit">
+                    <div class="number" id="minutes">00</div>
+                    <div class="label">Minutes</div>
+                </div>
+                <div class="unit">
+                    <div class="number" id="seconds">00</div>
+                    <div class="label">Seconds</div>
+                </div>
+            </div>
+
+            <div class="overlay-info" id="overlayInfo">
+                <div class="close-calls-card">
+                    <button class="close-button" id="closeButton">X</button>
+                    <h2>The Closest Call</h2>
+                    <div class="highlight-box">
+                        <p>May 17, 2006. UCL Final at Stade de France, Paris. Arsenal played more than 70 minutes with ten men after Jens Lehmann’s early red card yet still protected a 1-0 lead for most of the night. It was the first final in tournament history where a goalkeeper was sent off, and Arsenal became the only team to lead a Champions League title match for over an hour while a man down. But late goals from Samuel Eto’o and Juliano Belletti overturned the scoreline in the final 14 minutes. This still remains the closest Arsenal have come to lifting the trophy.</p>
+                        <p style="margin-top: 10px; color: var(--text-muted); font-size: 0.8rem;">[STATUS: DEFEAT PROTOCOL ACTIVATED]</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <p class="context-text">
+            Arsenal Football Club was founded as <strong>Dial Square</strong> on <strong>December 11, 1886</strong>. <br>This counter tracks the time elapsed since foundation until they lift the ultimate prize in club football, The UEFA Champions League!
+        </p>
+
+        <div class="timeline-section">
+            <h2 style="font-size: 1.2rem; text-transform: uppercase; color: var(--text-primary); letter-spacing: 0.2em; border-bottom: 1px solid var(--arsenal-red); padding-bottom: 0.5rem; text-align: left;">
+                TIME IN PERSPECTIVE
+            </h2>
+
+            <div class="timeline-list">
+                <div class="milestone-card">
+                    <span class="year">1886 - 1928</span>
+                    <h3>Penicillin Discovered</h3>
+                    <p>Alexander Fleming discovered Penicillin, one of the world's most vital medicines, while Arsenal was founded and still hadn't won the UCL.</p>
+                </div>
+
+                <div class="milestone-card">
+                    <span class="year">1955</span>
+                    <h3>The European Cup Begins</h3>
+                    <p>The first-ever European Cup (now UCL) final was played between Real Madrid and Reims. Arsenal watched from afar, 69 years ago.</p>
+                </div>
+
+                <div class="milestone-card">
+                    <span class="year">2004</span>
+                    <h3>Facebook Launched</h3>
+                    <p>Mark Zuckerberg founded Facebook in his Harvard dorm room. It now has billions of users, but Arsenal still has zero UCLs.</p>
+                </div>
+                
+                <div class="milestone-card">
+                    <span class="year">2006</span>
+                    <h3>Pluto Demoted</h3>
+                    <p>Pluto officially lost its planet status. This may or may not be less traumatic than the 2006 final loss.</p>
+                </div>
+
+                <div class="milestone-card">
+                    <span class="year">2023 - 2024</span>
+                    <h3>ChatGPT Revolution</h3>
+                    <p>Advanced AI models began transforming global industries. The UCL trophy remains firmly untransformed by Arsenal's hands.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            UPDATES EVERY SECOND
+        </div>
+    </div>
+
+
+    <script>
+        const foundationDate = new Date('1886-12-11T00:00:00');
+
+        // UI Elements
+        const soundSelect = document.getElementById('soundSelect');
+        const timerWrapper = document.getElementById('timerWrapper');
+        const overlayInfo = document.getElementById('overlayInfo');
+        const closeButton = document.getElementById('closeButton');
+        const yearsEl = document.getElementById('years');
+
+        // Audio Context Setup
+        let audioContext = null;
+        let currentSoundObj = null;
+        let currentSoundType = 'tick'; // Default to tick
+        let isMuted = false;
+
+        function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        // Sound Generators
+        const sounds = {
+            tick: () => {
+                if (isMuted) return;
+                initAudio();
+                const osc = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                osc.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                osc.frequency.value = 800;
+                gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+                
+                osc.start(audioContext.currentTime);
+                osc.stop(audioContext.currentTime + 0.1);
+                
+                return { stop: () => {} };
+            },
+            
+            heartbeat: () => {
+                let interval;
+                const playBeat = () => {
+                    if (isMuted) return;
+                    initAudio();
+                    
+                    const osc = audioContext.createOscillator();
+                    const gainNode = audioContext.createGain();
+                    osc.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    osc.frequency.value = 80;
+                    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+                    osc.start(audioContext.currentTime);
+                    osc.stop(audioContext.currentTime + 0.15);
+                    
+                    setTimeout(() => {
+                        const osc2 = audioContext.createOscillator();
+                        const gainNode2 = audioContext.createGain();
+                        osc2.connect(gainNode2);
+                        gainNode2.connect(audioContext.destination);
+                        osc2.frequency.value = 60;
+                        gainNode2.gain.setValueAtTime(0.2, audioContext.currentTime);
+                        gainNode2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+                        osc2.start(audioContext.currentTime);
+                        osc2.stop(audioContext.currentTime + 0.1);
+                    }, 150);
+                };
+                
+                interval = setInterval(playBeat, 1000);
+                return { stop: () => clearInterval(interval) };
+            },
+            
+            ambient: () => {
+                initAudio();
+                const osc1 = audioContext.createOscillator();
+                const osc2 = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                osc1.connect(gainNode);
+                osc2.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                osc1.type = 'sine';
+                osc2.type = 'sine';
+                osc1.frequency.value = 110;
+                osc2.frequency.value = 165;
+                gainNode.gain.value = 0.05;
+                
+                osc1.start();
+                osc2.start();
+                
+                return { 
+                    stop: () => { 
+                        osc1.stop(); 
+                        osc2.stop(); 
+                    } 
+                };
+            },
+            
+            dramatic: () => {
+                initAudio();
+                const osc1 = audioContext.createOscillator();
+                const osc2 = audioContext.createOscillator();
+                const osc3 = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                osc1.connect(gainNode);
+                osc2.connect(gainNode);
+                osc3.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                osc1.type = 'sawtooth';
+                osc2.type = 'sawtooth';
+                osc3.type = 'sine';
+                osc1.frequency.value = 55;
+                osc2.frequency.value = 82.5;
+                osc3.frequency.value = 110;
+                gainNode.gain.value = 0.08;
+                
+                osc1.start();
+                osc2.start();
+                osc3.start();
+                
+                return { 
+                    stop: () => { 
+                        osc1.stop(); 
+                        osc2.stop(); 
+                        osc3.stop(); 
+                    } 
+                };
+            }
+        };
+
+        // --- Sound Control Functions ---
+
+        function stopCurrentSound() {
+            if (currentSoundObj && currentSoundObj.stop) {
+                currentSoundObj.stop();
+                currentSoundObj = null;
+            }
+        }
+
+        function startSound(type) {
+            stopCurrentSound();
+            currentSoundType = type;
+
+            if (type !== 'none' && sounds[type]) {
+                initAudio();
+                if (type !== 'tick' && !isMuted) {
+                    currentSoundObj = sounds[type]();
+                }
+            }
+        }
+        
+        // Dropdown Handler
+        soundSelect.addEventListener('change', (e) => {
+            const selectedSound = e.target.value;
+            
+            if (selectedSound === 'none') {
+                isMuted = true;
+                stopCurrentSound();
+            } else {
+                if (isMuted) {
+                    isMuted = false;
+                }
+                startSound(selectedSound);
+            }
+        });
+
+        startSound('tick');
+
+        // Mobile/Click Toggle for Close Calls Info
+        function toggleOverlay(e) {
+            if (e.type === 'click' || window.innerWidth <= 768) {
+                overlayInfo.classList.toggle('active');
+            }
+        }
+        
+        timerWrapper.addEventListener('click', toggleOverlay);
+        closeButton.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent click on button from bubbling up and re-opening
+            overlayInfo.classList.remove('active');
+        });
+
+        // --- Timer Logic ---
+
+        function updateTimer() {
+            const now = new Date();
+            const diff = now - foundationDate;
+
+            // Time Conversions
+            const msPerYear = 1000 * 60 * 60 * 24 * 365.2425; 
+            const msPerDay = 1000 * 60 * 60 * 24;
+            const msPerHour = 1000 * 60 * 60;
+            const msPerMinute = 1000 * 60;
+            const msPerSecond = 1000;
+
+            let years = Math.floor(diff / msPerYear);
+            let remainder = diff % msPerYear;
+            let days = Math.floor(remainder / msPerDay);
+            remainder = remainder % msPerDay;
+            let hours = Math.floor(remainder / msPerHour);
+            remainder = remainder % msPerHour;
+            let minutes = Math.floor(remainder / msPerMinute);
+            remainder = remainder % msPerMinute;
+            let seconds = Math.floor(remainder / msPerSecond);
+
+            const format = (num) => num.toString().padStart(2, '0');
+
+            // Update DOM
+            yearsEl.innerText = years;
+            yearsEl.setAttribute('data-text', years);
+
+            document.getElementById('days').innerText = days.toString().padStart(3, '0');
+            document.getElementById('hours').innerText = format(hours);
+            document.getElementById('minutes').innerText = format(minutes);
+            document.getElementById('seconds').innerText = format(seconds);
+            
+            // Play tick sound if active
+            if (currentSoundType === 'tick' && !isMuted) {
+                sounds.tick();
+            }
+        }
+
+        // Spotlight Logic (Desktop)
+        const spotlight = document.getElementById('spotlight');
+        document.addEventListener('mousemove', (e) => {
+            if (window.innerWidth > 768 && spotlight) {
+                const x = e.clientX;
+                const y = e.clientY;
+                spotlight.style.left = `${x}px`;
+                spotlight.style.top = `${y}px`;
+            }
+        });
+
+        /* --- Optimized Update Loop using setTimeout/requestAnimationFrame --- */
+        function startLoop() {
+            const update = () => {
+                updateTimer();
+                const now = new Date();
+                const msUntilNextSecond = 1000 - now.getMilliseconds();
+                
+                setTimeout(() => {
+                    requestAnimationFrame(update); 
+                }, msUntilNextSecond);
+            };
+            update();
+        }
+
+        // Initialize the timer using the optimized loop
+        startLoop();
+    </script>
+</body>
+</html>
